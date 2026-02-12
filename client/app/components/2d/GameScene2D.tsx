@@ -160,29 +160,30 @@ export default function GameScene2D({ ropePosition, winner }: GameScene2DProps) 
     dustRef.current = dustC;
 
     // ═══════════════════════════════════════════════════════
-    //  TEAM SPRITES — Direct, no containers
+    //  TEAM SPRITES — Direct
     //
-    //  boy_team.png : boys face RIGHT, rope exits RIGHT side
-    //  girl_team.png: girls face RIGHT, rope exits RIGHT side
+    //  boy_team.png : 640x640, boys face RIGHT, padding at bottom (~25%)
+    //  girl_team.png: 640x640, girls face LEFT,  padding at bottom (~25%)
     //
-    //  Left team (boys):  face RIGHT toward center → as-is
-    //  Right team (girls): face LEFT toward center → flip via scale.x = -S
-    //
-    //  Anchor = (0.9, 0.97) → near the rope-exit edge, near feet
-    //  For boys:  anchor at right edge → sprite body extends LEFT
-    //  For girls: anchor at right edge → flipped → sprite body extends RIGHT
+    //  Ground alignment: Feet are roughly at 72% height.
+    //  Anchor Y = 0.72 puts the feet at position.y (GROUND_Y)
     // ═══════════════════════════════════════════════════════
 
+    const ANCHOR_Y = 0.72; // Feet are ~72% down the image
+    const ANCHOR_X = 0.9;  // Rope exit point roughly 90% width
+
     const boySprite = new PIXI.Sprite(PIXI.Texture.from('/boy_team.png'));
-    boySprite.anchor.set(0.9, 0.97);
+    boySprite.anchor.set(ANCHOR_X, ANCHOR_Y);
     boySprite.scale.set(S, S);
     boySprite.y = GROUND_Y;
     app.stage.addChild(boySprite);
     leftSprRef.current = boySprite;
 
     const girlSprite = new PIXI.Sprite(PIXI.Texture.from('/girl_team.png'));
-    girlSprite.anchor.set(0.9, 0.97);
-    girlSprite.scale.set(-S, S);  // NEGATIVE x = horizontal flip
+    girlSprite.anchor.set(ANCHOR_X, ANCHOR_Y);
+    // Girls naturally face LEFT, so NO FLIP needed. 
+    // Just positive scale.
+    girlSprite.scale.set(S, S);
     girlSprite.y = GROUND_Y;
     app.stage.addChild(girlSprite);
     rightSprRef.current = girlSprite;
