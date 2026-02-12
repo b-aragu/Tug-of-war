@@ -38,10 +38,18 @@ class Game {
     nextQuestion() {
         if (!this.isRunning) return;
 
-        // Generate Question
-        const a = Math.floor(Math.random() * 10) + 1; // 1-10
-        const b = Math.floor(Math.random() * 10) + 1; // 1-10
+        // Generate Question — ensure answer is always non-negative
+        let a = Math.floor(Math.random() * 10) + 1; // 1-10
+        let b = Math.floor(Math.random() * 10) + 1; // 1-10
         const isAddition = Math.random() > 0.5;
+
+        // For subtraction, make sure a >= b so answer is positive
+        if (!isAddition && a < b) {
+            const temp = a;
+            a = b;
+            b = temp;
+        }
+
         const questionText = isAddition ? `${a} + ${b}` : `${a} - ${b}`;
         const correctAnswer = isAddition ? a + b : a - b;
 
