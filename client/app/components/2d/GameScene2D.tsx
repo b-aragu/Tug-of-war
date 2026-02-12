@@ -10,20 +10,21 @@ interface GameScene2DProps {
 const W = 1000, H = 500;
 const GROUND_Y = 410;
 const ROPE_Y = GROUND_Y - 75;
-const TEAM_GAP = 140;
+const TEAM_GAP = 125;
 const ROPE_MULT = 4;
 const MIN_RX = 200, MAX_RX = W - 200;
 
-// Target sprite height — controls how big the teams look on screen
-const TEAM_H = 185;
+// Sprite scaling: images are 640×640, target display height
+const TEAM_H = 195;
+const S = TEAM_H / 640;
 
 export default function GameScene2D({ ropePosition, winner }: GameScene2DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<PIXI.Application | null>(null);
   const targetXRef = useRef(W / 2);
   const currentXRef = useRef(W / 2);
-  const leftTeamRef = useRef<PIXI.Container | null>(null);
-  const rightTeamRef = useRef<PIXI.Container | null>(null);
+  const leftSprRef = useRef<PIXI.Sprite | null>(null);
+  const rightSprRef = useRef<PIXI.Sprite | null>(null);
   const ropeGfxRef = useRef<PIXI.Graphics | null>(null);
   const dustRef = useRef<PIXI.Container | null>(null);
   const flagRef = useRef<PIXI.Graphics | null>(null);
@@ -43,7 +44,6 @@ export default function GameScene2D({ ropePosition, winner }: GameScene2DProps) 
     let alive = true;
 
     // ═══ BACKGROUND ═══
-    // Sky gradient
     const sky = new PIXI.Graphics();
     for (let i = 0; i < 20; i++) {
       const t = i / 20;
@@ -83,7 +83,7 @@ export default function GameScene2D({ ropePosition, winner }: GameScene2DProps) 
       app.stage.addChild(cl); clouds.push(cl);
     });
 
-    // Far hills
+    // Hills (far + near)
     const hf = new PIXI.Graphics();
     hf.beginFill(0x66BB6A, 0.5);
     hf.moveTo(0, GROUND_Y - 55); hf.quadraticCurveTo(150, GROUND_Y - 110, 300, GROUND_Y - 45);
@@ -91,7 +91,6 @@ export default function GameScene2D({ ropePosition, winner }: GameScene2DProps) 
     hf.quadraticCurveTo(850, GROUND_Y - 95, W, GROUND_Y - 35);
     hf.lineTo(W, GROUND_Y); hf.lineTo(0, GROUND_Y); hf.closePath(); hf.endFill();
     app.stage.addChild(hf);
-    // Near hills
     const hn = new PIXI.Graphics();
     hn.beginFill(0x43A047, 0.6);
     hn.moveTo(0, GROUND_Y - 18); hn.quadraticCurveTo(250, GROUND_Y - 45, 500, GROUND_Y - 10);
@@ -155,65 +154,51 @@ export default function GameScene2D({ ropePosition, winner }: GameScene2DProps) 
     app.stage.addChild(flag);
     flagRef.current = flag;
 
-    // Dust container
+    // Dust
     const dustC = new PIXI.Container();
     app.stage.addChild(dustC);
     dustRef.current = dustC;
 
     // ═══════════════════════════════════════════════════════
-    //  TEAM SPRITES
-    //  Images are 640×640 PNG. The characters fill about 
-    //  the bottom 60% of the image. We scale so total
-    //  displayed height = TEAM_H and position at the ground.
+    //  TEAM SPRITES — Direct, no containers
+    //
+    //  boy_team.png : boys face RIGHT, rope exits RIGHT side
+    //  girl_team.png: girls face RIGHT, rope exits RIGHT side
+    //
+    //  Left team (boys):  face RIGHT toward center → as-is
+    //  Right team (girls): face LEFT toward center → flip via scale.x = -S
+    //
+    //  Anchor = (0.9, 0.97) → near the rope-exit edge, near feet
+    //  For boys:  anchor at right edge → sprite body extends LEFT
+    //  For girls: anchor at right edge → flipped → sprite body extends RIGHT
     // ═══════════════════════════════════════════════════════
 
-    const SPRITE_SCALE = TEAM_H / 640;
+    const boySprite = new PIXI.Sprite(PIXI.Texture.from('/boy_team.png'));
+    boySprite.anchor.set(0.9, 0.97);
+    boySprite.scale.set(S, S);
+    boySprite.y = GROUND_Y;
+    app.stage.addChild(boySprite);
+    leftSprRef.current = boySprite;
 
-    // ── LEFT TEAM (boys) ──
-    // boy_team.png: boys face RIGHT, rope exits right side
-    // We want them on the LEFT side, facing RIGHT ─ perfect as-is
-    const leftContainer = new PIXI.Container();
-    const boyTex = PIXI.Texture.from('/boy_team.png');
-    const boySprite = new PIXI.Sprite(boyTex);
-    boySprite.scale.set(SPRITE_SCALE);
-    // The characters' feet are near the bottom of the 640px image
-    // Offset the sprite upward so feet land on y=0 of the container
-    // Characters occupy roughly bottom 65% → feet at y≈640, heads at y≈220
-    // With scale, the total height is TEAM_H
-    // Anchor at bottom-center of the character group:
-    boySprite.anchor.set(0.75, 0.92); // anchor near right-bottom (rope side, feet)
-    leftContainer.addChild(boySprite);
-    leftContainer.y = GROUND_Y;
-    app.stage.addChild(leftContainer);
-    leftTeamRef.current = leftContainer;
+    const girlSprite = new PIXI.Sprite(PIXI.Texture.from('/girl_team.png'));
+    girlSprite.anchor.set(0.9, 0.97);
+    girlSprite.scale.set(-S, S);  // NEGATIVE x = horizontal flip
+    girlSprite.y = GROUND_Y;
+    app.stage.addChild(girlSprite);
+    rightSprRef.current = girlSprite;
 
-    // ── RIGHT TEAM (girls) ──
-    // girl_team.png: girls face RIGHT, rope exits right side
-    // We need them on the RIGHT side, facing LEFT → flip horizontally
-    const rightContainer = new PIXI.Container();
-    const girlTex = PIXI.Texture.from('/girl_team.png');
-    const girlSprite = new PIXI.Sprite(girlTex);
-    girlSprite.scale.set(SPRITE_SCALE);
-    girlSprite.anchor.set(0.75, 0.92);
-    rightContainer.addChild(girlSprite);
-    rightContainer.scale.x = -1; // flip the whole container
-    rightContainer.y = GROUND_Y;
-    app.stage.addChild(rightContainer);
-    rightTeamRef.current = rightContainer;
-
-    // Init position
+    // Init
     currentXRef.current = W / 2;
     targetXRef.current = W / 2;
     applyPos(W / 2);
 
     let dustTimer = 0;
 
-    // ═══ ANIMATION LOOP ═══
+    // ═══ ANIMATION ═══
     app.ticker.add(delta => {
       if (!alive) return;
       const t = performance.now() / 1000;
 
-      // Smooth rope interpolation
       const prevX = currentXRef.current;
       currentXRef.current += (targetXRef.current - currentXRef.current) * 0.07;
       applyPos(currentXRef.current);
@@ -223,35 +208,33 @@ export default function GameScene2D({ ropePosition, winner }: GameScene2DProps) 
         clouds[i].x += (0.12 + i * 0.04) * delta;
         if (clouds[i].x > W + 100) clouds[i].x = -100;
       }
-      // Sun pulse
       sun.scale.set(1 + Math.sin(t * 0.5) * 0.025);
-      // Grass sway
       for (let i = 0; i < grassC.children.length; i++) {
         grassC.children[i].rotation = Math.sin(t * 2 + i * 0.3) * 0.08;
       }
 
-      // Team sprite animation — heaving/pulling motion
-      if (leftTeamRef.current) {
-        leftTeamRef.current.y = GROUND_Y + Math.sin(t * 3.2) * 2;
-        leftTeamRef.current.rotation = -0.015 - Math.sin(t * 3.2) * 0.012;
+      // Team heave animation
+      if (leftSprRef.current) {
+        leftSprRef.current.y = GROUND_Y + Math.sin(t * 3.2) * 2;
+        leftSprRef.current.rotation = -0.012 - Math.sin(t * 3.2) * 0.01;
       }
-      if (rightTeamRef.current) {
-        rightTeamRef.current.y = GROUND_Y + Math.sin(t * 3.2 + 1.5) * 2;
-        rightTeamRef.current.rotation = -(0.015 + Math.sin(t * 3.2 + 1.5) * 0.012);
+      if (rightSprRef.current) {
+        rightSprRef.current.y = GROUND_Y + Math.sin(t * 3.2 + 1.5) * 2;
+        rightSprRef.current.rotation = 0.012 + Math.sin(t * 3.2 + 1.5) * 0.01;
       }
 
-      // Dust particles
+      // Dust
       const speed = Math.abs(currentXRef.current - prevX);
       dustTimer += delta;
       if (speed > 0.2 && dustTimer > 3 && dustRef.current) {
         dustTimer = 0;
-        [leftTeamRef.current, rightTeamRef.current].forEach(team => {
-          if (!team) return;
+        [leftSprRef.current, rightSprRef.current].forEach(spr => {
+          if (!spr) return;
           for (let j = 0; j < 2; j++) {
             const d = new PIXI.Graphics();
             d.beginFill(0x795548, 0.45);
             d.drawCircle(0, 0, 3 + Math.random() * 5); d.endFill();
-            d.x = team.x + (Math.random() - 0.5) * 80;
+            d.x = spr.x + (Math.random() - 0.5) * 80;
             d.y = GROUND_Y + Math.random() * 5;
             (d as any).life = 1;
             (d as any).vx = (Math.random() - 0.5) * 1.5;
@@ -270,42 +253,32 @@ export default function GameScene2D({ ropePosition, winner }: GameScene2DProps) 
       }
 
       // Rope
-      if (ropeGfxRef.current && leftTeamRef.current && rightTeamRef.current) {
+      if (ropeGfxRef.current && leftSprRef.current && rightSprRef.current) {
         const g = ropeGfxRef.current;
         g.clear();
-        const lx = leftTeamRef.current.x + 15;
-        const rx = rightTeamRef.current.x - 15;
-        // Shadow
-        g.lineStyle(2, 0x5D4519, 0.3);
-        g.moveTo(lx, ROPE_Y + 3); g.lineTo(rx, ROPE_Y + 3);
-        // Main rope body
-        g.lineStyle(7, 0x8D6E2F);
-        g.moveTo(lx, ROPE_Y); g.lineTo(rx, ROPE_Y);
-        // Highlight
-        g.lineStyle(2.5, 0xC4A050, 0.35);
-        g.moveTo(lx, ROPE_Y - 2); g.lineTo(rx, ROPE_Y - 2);
-        // Knots
+        const lx = leftSprRef.current.x + 12;
+        const rx = rightSprRef.current.x - 12;
+        g.lineStyle(2, 0x5D4519, 0.3); g.moveTo(lx, ROPE_Y + 3); g.lineTo(rx, ROPE_Y + 3);
+        g.lineStyle(7, 0x8D6E2F); g.moveTo(lx, ROPE_Y); g.lineTo(rx, ROPE_Y);
+        g.lineStyle(2.5, 0xC4A050, 0.35); g.moveTo(lx, ROPE_Y - 2); g.lineTo(rx, ROPE_Y - 2);
         g.lineStyle(1.5, 0x5D4519, 0.4);
-        for (let kx = lx + 12; kx < rx; kx += 20) {
-          g.moveTo(kx, ROPE_Y - 3); g.lineTo(kx + 4, ROPE_Y + 3);
-        }
+        for (let kx = lx + 12; kx < rx; kx += 20) { g.moveTo(kx, ROPE_Y - 3); g.lineTo(kx + 4, ROPE_Y + 3); }
       }
 
-      // Flag follows rope
-      if (flagRef.current) {
-        flagRef.current.x = currentXRef.current;
-      }
+      if (flagRef.current) flagRef.current.x = currentXRef.current;
     });
 
     function applyPos(rx: number) {
       const cl = Math.max(MIN_RX, Math.min(MAX_RX, rx));
-      if (leftTeamRef.current) leftTeamRef.current.x = cl - TEAM_GAP;
-      if (rightTeamRef.current) rightTeamRef.current.x = cl + TEAM_GAP;
+      // Boys: anchor at right edge → position their rope-side at cl - gap
+      if (leftSprRef.current) leftSprRef.current.x = cl - TEAM_GAP;
+      // Girls: anchor at right edge, flipped → position their rope-side at cl + gap
+      if (rightSprRef.current) rightSprRef.current.x = cl + TEAM_GAP;
     }
 
     return () => {
       alive = false;
-      leftTeamRef.current = null; rightTeamRef.current = null;
+      leftSprRef.current = null; rightSprRef.current = null;
       ropeGfxRef.current = null; dustRef.current = null; flagRef.current = null;
       if (appRef.current) {
         try { appRef.current.destroy(true, { children: true }); } catch (_) { }
